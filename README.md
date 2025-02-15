@@ -37,6 +37,7 @@ source install/setup.bash
 ```bash
 cd custom_gcs/web
 npm install
+npm install cross-env --save-dev
 ```
 
 ### 4. Build Web Interface

@@ -83,8 +83,11 @@ class DronekitBridge(Node):
         try:
             async for message in websocket:
                 await self._handle_command(websocket, message)
+        except Exception as e:
+            self.get_logger().error(f"WebSocket error: {str(e)}")
         finally:
             self._websocket_clients.remove(websocket)
+        
 
     async def _handle_command(self, websocket, message):
         if not self._vehicle:
