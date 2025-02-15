@@ -1,0 +1,18 @@
+# ROS2
+build/
+install/
+log/
+
+# Web/Node
+node_modules/
+dist/
+release/
+.env
+*.log
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
