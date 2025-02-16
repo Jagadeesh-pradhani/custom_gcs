@@ -88,6 +88,7 @@ class DronekitBridge(Node):
         finally:
             self._websocket_clients.remove(websocket)
         
+
     async def _handle_command(self, websocket, message):
         if not self._vehicle:
             await websocket.send(json.dumps({
@@ -123,6 +124,10 @@ class DronekitBridge(Node):
             elif cmd['type'] == 'land':
                 self._vehicle.mode = VehicleMode("LAND")
                 response['message'] = "Landing initiated"
+            
+            elif cmd['type'] == 'guided':
+                self._vehicle.mode = VehicleMode("GUIDED")
+                response['message'] = "Guided mode activated"
                 
             await websocket.send(json.dumps(response))
             

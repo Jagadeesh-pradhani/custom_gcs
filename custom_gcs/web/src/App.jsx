@@ -1,7 +1,9 @@
 // src/App.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Wifi } from 'lucide-react';
+import { loadModules } from 'esri-loader';
 
+// =================== Drone Status Component =================== //
 const DroneStatus = ({ connected, battery, mode, altitude }) => {
   return (
     <div className="status-panel">
@@ -18,14 +20,7 @@ const DroneStatus = ({ connected, battery, mode, altitude }) => {
   );
 };
 
-const MapView = () => {
-  return (
-    <div className="map-view">
-      <div>Map View Placeholder</div>
-    </div>
-  );
-};
-
+// =================== Telemetry Data Component =================== //
 const TelemetryData = ({ data }) => {
   return (
     <div className="telemetry-panel">
@@ -45,37 +40,160 @@ const TelemetryData = ({ data }) => {
   );
 };
 
+// =================== Control Panel Component =================== //
 const ControlPanel = ({ onCommand }) => {
   return (
     <div className="control-panel">
-      <button 
-        onClick={() => onCommand('arm')}
-        className="btn btn-blue"
-      >
+      <button onClick={() => onCommand('arm')} className="btn btn-blue">
         Arm
       </button>
-      <button 
-        onClick={() => onCommand('takeoff')}
-        className="btn btn-green"
-      >
+      <button onClick={() => onCommand('takeoff')} className="btn btn-green">
         Takeoff
       </button>
-      <button 
-        onClick={() => onCommand('rtl')}
-        className="btn btn-yellow"
-      >
+      <button onClick={() => onCommand('rtl')} className="btn btn-yellow">
         Return to Launch
       </button>
-      <button 
-        onClick={() => onCommand('land')}
-        className="btn btn-red"
-      >
+      <button onClick={() => onCommand('land')} className="btn btn-red">
         Land
+      </button>
+      <button onClick={() => onCommand('guided')} className="btn btn-gray">
+        Guided
       </button>
     </div>
   );
 };
 
+// =================== ArcGIS Map Component with Path Tracking =================== //
+const ArcgisMap = ({ lat, lon }) => {
+  const mapRef = useRef(null);              // Reference to the map container div
+  const viewRef = useRef(null);             // Reference to the MapView instance
+  const markerGraphicRef = useRef(null);    // Reference to the drone marker graphic
+  const pathGraphicRef = useRef(null);      // Reference to the polyline graphic
+  const graphicsLayerRef = useRef(null);    // Reference to the GraphicsLayer
+  const polylineCoordsRef = useRef([]);     // Holds an array of [lon, lat] points
+  const GraphicModuleRef = useRef(null);    // Will store the loaded Graphic module
+
+  useEffect(() => {
+    loadModules(
+      ['esri/Map', 'esri/views/MapView', 'esri/Graphic', 'esri/layers/GraphicsLayer'],
+      { css: true }
+    )
+      .then(([Map, MapView, Graphic, GraphicsLayer]) => {
+        // Save the Graphic module for later updates
+        GraphicModuleRef.current = Graphic;
+
+        // Create the map with a "topo" basemap.
+        const map = new Map({
+          basemap: 'topo'
+        });
+
+        // Initialize the MapView.
+        const view = new MapView({
+          container: mapRef.current,
+          map: map,
+          center: [lon || 0, lat || 0],
+          zoom: 15
+        });
+        viewRef.current = view;
+
+        // Create and add a GraphicsLayer.
+        const graphicsLayer = new GraphicsLayer();
+        map.add(graphicsLayer);
+        graphicsLayerRef.current = graphicsLayer;
+
+        // Create the drone marker graphic.
+        const markerGraphic = new Graphic({
+          geometry: {
+            type: 'point',
+            longitude: lon || 0,
+            latitude: lat || 0
+          },
+          symbol: {
+            type: 'simple-marker',
+            color: [226, 119, 40],
+            outline: { color: [255, 255, 255], width: 2 }
+          }
+        });
+        graphicsLayer.add(markerGraphic);
+        markerGraphicRef.current = markerGraphic;
+
+        // Initialize the polyline coordinates with the starting point.
+        polylineCoordsRef.current = [[lon, lat]];
+
+        // Create the polyline graphic to show the drone’s path.
+        const polylineGraphic = new Graphic({
+          geometry: {
+            type: 'polyline',
+            paths: polylineCoordsRef.current
+          },
+          symbol: {
+            type: 'simple-line',
+            color: [0, 0, 255],
+            width: 2
+          }
+        });
+        graphicsLayer.add(polylineGraphic);
+        pathGraphicRef.current = polylineGraphic;
+      })
+      .catch(err => console.error('ArcGIS loadModules error: ', err));
+
+    // Cleanup: Destroy the MapView when the component unmounts.
+    return () => {
+      if (viewRef.current) {
+        viewRef.current.destroy();
+      }
+    };
+  }, []); // Run once on mount
+
+  // Update the drone marker and polyline path whenever lat/lon changes.
+  useEffect(() => {
+    if (
+      markerGraphicRef.current &&
+      viewRef.current &&
+      GraphicModuleRef.current &&
+      graphicsLayerRef.current
+    ) {
+      // Update the drone marker position.
+      markerGraphicRef.current.geometry = {
+        type: 'point',
+        longitude: lon,
+        latitude: lat
+      };
+
+      // Calculate the distance from the last recorded point.
+      const lastCoords = polylineCoordsRef.current[polylineCoordsRef.current.length - 1];
+      const toRadians = (deg) => (deg * Math.PI) / 180;
+      const latDiff = lat - lastCoords[1];
+      const lonDiff = lon - lastCoords[0];
+      // Approximate conversion: 1° latitude ~ 111320 meters, and for longitude scale with cos(latitude)
+      const avgLat = (lat + lastCoords[1]) / 2;
+      const metersPerDegLat = 111320;
+      const metersPerDegLon = 111320 * Math.cos(toRadians(avgLat));
+      const distance = Math.sqrt(
+        (latDiff * metersPerDegLat) ** 2 + (lonDiff * metersPerDegLon) ** 2
+      );
+
+      // Set a threshold (e.g., 2 meters) to record a new point.
+      const threshold = 2;
+      if (distance >= threshold) {
+        // Add the new coordinate to the polyline path.
+        polylineCoordsRef.current.push([lon, lat]);
+        // Update the polyline graphic geometry.
+        pathGraphicRef.current.geometry = {
+          type: 'polyline',
+          paths: polylineCoordsRef.current
+        };
+      }
+
+      // Optionally recenter the view.
+      viewRef.current.center = [lon, lat];
+    }
+  }, [lat, lon]);
+
+  return <div style={{ height: '100%', width: '100%' }} ref={mapRef}></div>;
+};
+
+// =================== Main App Component =================== //
 const App = () => {
   const [websocket, setWebsocket] = useState(null);
   const [droneState, setDroneState] = useState({
@@ -83,6 +201,8 @@ const App = () => {
     battery: 0,
     mode: 'STABILIZE',
     altitude: 0,
+    lat: -35.363262, // Drone latitude
+    lon: 149.165237, // Drone longitude
     telemetry: {
       heading: 0,
       groundspeed: 0,
@@ -90,6 +210,7 @@ const App = () => {
     }
   });
 
+  // Set up a WebSocket connection to receive drone telemetry.
   useEffect(() => {
     const ws = new WebSocket('ws://localhost:8765');
     setWebsocket(ws);
@@ -106,6 +227,8 @@ const App = () => {
         battery: data.battery,
         mode: data.mode,
         altitude: data.alt,
+        lat: data.lat,
+        lon: data.lon,
         telemetry: {
           heading: data.heading,
           groundspeed: data.groundspeed,
@@ -124,6 +247,7 @@ const App = () => {
     };
   }, []);
 
+  // Send control commands via WebSocket.
   const handleCommand = (command) => {
     if (!websocket || websocket.readyState !== WebSocket.OPEN) {
       console.error('WebSocket not connected');
@@ -131,10 +255,11 @@ const App = () => {
     }
 
     const commandMap = {
-      'arm': { type: 'arm', value: true },
-      'takeoff': { type: 'takeoff', altitude: 10 },
-      'rtl': { type: 'mode', value: 'RTL' },
-      'land': { type: 'mode', value: 'LAND' }
+      arm: { type: 'arm', value: true },
+      takeoff: { type: 'takeoff', altitude: 10 },
+      rtl: { type: 'mode', value: 'RTL' },
+      guided: { type: 'mode', value: 'GUIDED' },
+      land: { type: 'mode', value: 'LAND' }
     };
 
     const commandObj = commandMap[command];
@@ -146,21 +271,20 @@ const App = () => {
   };
 
   return (
-    <div className="container">
+    <div className="container" style={{ height: '100vh', width: '100vw' }}>
       <h1>Custom Ground Control Station</h1>
-      
-      <DroneStatus 
+      <DroneStatus
         connected={droneState.connected}
         battery={droneState.battery}
         mode={droneState.mode}
         altitude={droneState.altitude}
       />
-      
-      <div className="main-content">
-        <div className="map-container">
-          <MapView />
+
+      <div className="main-content" style={{ display: 'flex', gap: '1rem', height: 'calc(100% - 100px)' }}>
+        <div className="map-container" style={{ height: '100%', flex: 2 }}>
+          <ArcgisMap lat={droneState.lat} lon={droneState.lon} />
         </div>
-        <div className="side-panel">
+        <div className="side-panel" style={{ flex: 1 }}>
           <TelemetryData data={droneState.telemetry} />
           <ControlPanel onCommand={handleCommand} />
         </div>
