@@ -88,7 +88,6 @@ class DronekitBridge(Node):
         finally:
             self._websocket_clients.remove(websocket)
         
-
     async def _handle_command(self, websocket, message):
         if not self._vehicle:
             await websocket.send(json.dumps({

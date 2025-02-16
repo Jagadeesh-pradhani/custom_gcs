@@ -16,7 +16,7 @@ async function createWindow() {
 
   if (process.env.NODE_ENV === 'development') {
     await win.loadURL('http://localhost:5173');
-    #win.webContents.openDevTools();
+    // win.webContents.openDevTools();
   } else {
     // Use proper path resolution for production
     const prodPath = path.join(__dirname, 'dist', 'index.html');
