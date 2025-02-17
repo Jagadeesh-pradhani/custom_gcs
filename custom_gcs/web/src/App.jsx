@@ -42,12 +42,26 @@ const TelemetryData = ({ data }) => {
 
 // =================== Control Panel Component =================== //
 const ControlPanel = ({ onCommand }) => {
+  const [altitude, setAltitude] = useState(10);
+
   return (
     <div className="control-panel">
+      <div className="altitude-control">
+        <label>Takeoff Altitude (m): </label>
+        <input
+          type="number"
+          min="1"
+          value={altitude}
+          onChange={(e) => setAltitude(Math.max(1, parseInt(e.target.value) || 10))}
+        />
+      </div>
       <button onClick={() => onCommand('arm')} className="btn btn-blue">
         Arm
       </button>
-      <button onClick={() => onCommand('takeoff')} className="btn btn-green">
+      <button 
+        onClick={() => onCommand('takeoff', altitude)} 
+        className="btn btn-green"
+      >
         Takeoff
       </button>
       <button onClick={() => onCommand('rtl')} className="btn btn-yellow">
@@ -248,26 +262,36 @@ const App = () => {
   }, []);
 
   // Send control commands via WebSocket.
-  const handleCommand = (command) => {
+  const handleCommand = (commandType, ...params) => {
     if (!websocket || websocket.readyState !== WebSocket.OPEN) {
       console.error('WebSocket not connected');
       return;
     }
 
-    const commandMap = {
-      arm: { type: 'arm', value: true },
-      takeoff: { type: 'takeoff', altitude: 10 },
-      rtl: { type: 'mode', value: 'RTL' },
-      guided: { type: 'mode', value: 'GUIDED' },
-      land: { type: 'mode', value: 'LAND' }
-    };
-
-    const commandObj = commandMap[command];
-    if (commandObj) {
-      websocket.send(JSON.stringify(commandObj));
-    } else {
-      console.error('Unknown command:', command);
+    let commandObj;
+    switch (commandType) {
+      case 'arm':
+        commandObj = { type: 'arm', value: true };
+        break;
+      case 'takeoff':
+        const altitude = params[0] || 10;
+        commandObj = { type: 'takeoff', altitude: altitude };
+        break;
+      case 'rtl':
+        commandObj = { type: 'mode', value: 'RTL' };
+        break;
+      case 'guided':
+        commandObj = { type: 'mode', value: 'GUIDED' };
+        break;
+      case 'land':
+        commandObj = { type: 'mode', value: 'LAND' };
+        break;
+      default:
+        console.error('Unknown command:', commandType);
+        return;
     }
+
+    websocket.send(JSON.stringify(commandObj));
   };
 
   return (
