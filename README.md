@@ -33,6 +33,19 @@ colcon build --packages-select custom_gcs
 source install/setup.bash
 ```
 
+### 3. node installation
+```bash
+sudo apt install nodejs npm
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
+```
+Restart terminal
+```bash
+nvm install 22
+nvm use 22
+```
+
+
+
 ### 3. Install Web Dependencies
 ```bash
 cd custom_gcs/web
