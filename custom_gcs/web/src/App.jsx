@@ -52,14 +52,16 @@ const ControlPanel = ({ onCommand }) => {
           type="number"
           min="1"
           value={altitude}
-          onChange={(e) => setAltitude(Math.max(1, parseInt(e.target.value) || 10))}
+          onChange={(e) =>
+            setAltitude(Math.max(1, parseInt(e.target.value) || 10))
+          }
         />
       </div>
       <button onClick={() => onCommand('arm')} className="btn btn-blue">
         Arm
       </button>
-      <button 
-        onClick={() => onCommand('takeoff', altitude)} 
+      <button
+        onClick={() => onCommand('takeoff', altitude)}
         className="btn btn-green"
       >
         Takeoff
@@ -73,23 +75,55 @@ const ControlPanel = ({ onCommand }) => {
       <button onClick={() => onCommand('guided')} className="btn btn-gray">
         Guided
       </button>
+      <button onClick={() => onCommand('mission')} className="btn btn-mission">
+        Mission
+      </button>
+    </div>
+  );
+};
+
+// =================== Log Panel Component =================== //
+const LogPanel = ({ logs }) => {
+  return (
+    <div className="log-panel" style={{ marginTop: '1rem' }}>
+      <h2>System Log</h2>
+      <div
+        style={{
+          maxHeight: '200px',
+          overflowY: 'scroll',
+          background: '#f5f5f5',
+          padding: '0.5rem',
+          border: '1px solid #ccc'
+        }}
+      >
+        {logs.map((log, index) => (
+          <div key={index} className="log-entry">
+            {log}
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
 
 // =================== ArcGIS Map Component with Path Tracking =================== //
 const ArcgisMap = ({ lat, lon }) => {
-  const mapRef = useRef(null);              // Reference to the map container div
-  const viewRef = useRef(null);             // Reference to the MapView instance
-  const markerGraphicRef = useRef(null);    // Reference to the drone marker graphic
-  const pathGraphicRef = useRef(null);      // Reference to the polyline graphic
-  const graphicsLayerRef = useRef(null);    // Reference to the GraphicsLayer
-  const polylineCoordsRef = useRef([]);     // Holds an array of [lon, lat] points
-  const GraphicModuleRef = useRef(null);    // Will store the loaded Graphic module
+  const mapRef = useRef(null); // Reference to the map container div
+  const viewRef = useRef(null); // Reference to the MapView instance
+  const markerGraphicRef = useRef(null); // Reference to the drone marker graphic
+  const pathGraphicRef = useRef(null); // Reference to the polyline graphic
+  const graphicsLayerRef = useRef(null); // Reference to the GraphicsLayer
+  const polylineCoordsRef = useRef([]); // Holds an array of [lon, lat] points
+  const GraphicModuleRef = useRef(null); // Will store the loaded Graphic module
 
   useEffect(() => {
     loadModules(
-      ['esri/Map', 'esri/views/MapView', 'esri/Graphic', 'esri/layers/GraphicsLayer'],
+      [
+        'esri/Map',
+        'esri/views/MapView',
+        'esri/Graphic',
+        'esri/layers/GraphicsLayer'
+      ],
       { css: true }
     )
       .then(([Map, MapView, Graphic, GraphicsLayer]) => {
@@ -149,7 +183,7 @@ const ArcgisMap = ({ lat, lon }) => {
         graphicsLayer.add(polylineGraphic);
         pathGraphicRef.current = polylineGraphic;
       })
-      .catch(err => console.error('ArcGIS loadModules error: ', err));
+      .catch((err) => console.error('ArcGIS loadModules error: ', err));
 
     // Cleanup: Destroy the MapView when the component unmounts.
     return () => {
@@ -175,7 +209,8 @@ const ArcgisMap = ({ lat, lon }) => {
       };
 
       // Calculate the distance from the last recorded point.
-      const lastCoords = polylineCoordsRef.current[polylineCoordsRef.current.length - 1];
+      const lastCoords =
+        polylineCoordsRef.current[polylineCoordsRef.current.length - 1];
       const toRadians = (deg) => (deg * Math.PI) / 180;
       const latDiff = lat - lastCoords[1];
       const lonDiff = lon - lastCoords[0];
@@ -223,6 +258,13 @@ const App = () => {
       airspeed: 0
     }
   });
+  const [logs, setLogs] = useState([]);
+
+  // Utility to add a log message with timestamp.
+  const addLog = (message) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setLogs((prev) => [...prev, `[${timestamp}] ${message}`]);
+  };
 
   // Set up a WebSocket connection to receive drone telemetry.
   useEffect(() => {
@@ -231,12 +273,17 @@ const App = () => {
 
     ws.onopen = () => {
       console.log('Connected to WebSocket server');
-      setDroneState(prev => ({ ...prev, connected: true }));
+      addLog('Connected to WebSocket server');
+      setDroneState((prev) => ({ ...prev, connected: true }));
     };
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      setDroneState(prev => ({
+      // Only log if a message is present (e.g., command responses)
+      if (data.type === "log" && data.message) {
+        addLog(`[${data.level.toUpperCase()}] ${data.message}`);
+      }
+      setDroneState((prev) => ({
         ...prev,
         battery: data.battery,
         mode: data.mode,
@@ -253,7 +300,8 @@ const App = () => {
 
     ws.onclose = () => {
       console.log('Disconnected from WebSocket server');
-      setDroneState(prev => ({ ...prev, connected: false }));
+      addLog('Disconnected from WebSocket server');
+      setDroneState((prev) => ({ ...prev, connected: false }));
     };
 
     return () => {
@@ -265,6 +313,7 @@ const App = () => {
   const handleCommand = (commandType, ...params) => {
     if (!websocket || websocket.readyState !== WebSocket.OPEN) {
       console.error('WebSocket not connected');
+      addLog('WebSocket not connected');
       return;
     }
 
@@ -286,11 +335,16 @@ const App = () => {
       case 'land':
         commandObj = { type: 'mode', value: 'LAND' };
         break;
+      case 'mission':
+        commandObj = { type: 'mission' };
+        break;
       default:
         console.error('Unknown command:', commandType);
+        addLog(`Unknown command: ${commandType}`);
         return;
     }
 
+    addLog(`Sending command: ${JSON.stringify(commandObj)}`);
     websocket.send(JSON.stringify(commandObj));
   };
 
@@ -304,13 +358,17 @@ const App = () => {
         altitude={droneState.altitude}
       />
 
-      <div className="main-content" style={{ display: 'flex', gap: '1rem', height: 'calc(100% - 100px)' }}>
+      <div
+        className="main-content"
+        style={{ display: 'flex', gap: '1rem', height: 'calc(100% - 100px)' }}
+      >
         <div className="map-container" style={{ height: '100%', flex: 2 }}>
           <ArcgisMap lat={droneState.lat} lon={droneState.lon} />
         </div>
         <div className="side-panel" style={{ flex: 1 }}>
           <TelemetryData data={droneState.telemetry} />
           <ControlPanel onCommand={handleCommand} />
+          <LogPanel logs={logs} />
         </div>
       </div>
     </div>

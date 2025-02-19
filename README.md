@@ -74,6 +74,8 @@ cd custom_gcs/web
 npm run electron:dev
 ```
 
+![alt text](image.png)
+
 #### Production Mode:
 ```bash
 cd custom_gcs/web
