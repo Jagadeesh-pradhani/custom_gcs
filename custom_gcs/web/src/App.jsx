@@ -57,25 +57,25 @@ const ControlPanel = ({ onCommand }) => {
           }
         />
       </div>
-      <button onClick={() => onCommand('arm')} className="btn btn-blue">
+      <button onClick={() => onCommand('arm')} className="btn btn-brown">
         Arm
       </button>
       <button
         onClick={() => onCommand('takeoff', altitude)}
-        className="btn btn-green"
+        className="btn btn-brown"
       >
         Takeoff
       </button>
-      <button onClick={() => onCommand('rtl')} className="btn btn-yellow">
+      <button onClick={() => onCommand('rtl')} className="btn btn-brown">
         Return to Launch
       </button>
-      <button onClick={() => onCommand('land')} className="btn btn-red">
+      <button onClick={() => onCommand('land')} className="btn btn-brown">
         Land
       </button>
-      <button onClick={() => onCommand('guided')} className="btn btn-gray">
+      <button onClick={() => onCommand('guided')} className="btn btn-brown">
         Guided
       </button>
-      <button onClick={() => onCommand('mission')} className="btn btn-mission">
+      <button onClick={() => onCommand('mission')} className="btn btn-brown">
         Mission
       </button>
     </div>

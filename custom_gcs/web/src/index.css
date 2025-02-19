@@ -5,6 +5,9 @@
   --warning-color: #fbbc05;
   --danger-color: #ea4335;
   --gray-color: #5f6368;
+  --orange-color: #f57c00;
+  --brown-color: #795548;
+  --blue-color: #2196f3;
 }
 
 .container {
@@ -109,6 +112,20 @@ h1 {
 .btn-red {
   background-color: var(--danger-color);
 }
+
+.btn-orange {
+  background-color: var(--orange-color);
+}
+
+.btn-brown {
+  background-color: var(--brown-color);
+}
+
+.btn-blue {
+  background-color: var(--blue-color);
+}
+
+
 
 .side-panel {
   display: flex;
