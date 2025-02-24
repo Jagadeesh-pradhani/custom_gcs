@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Wifi } from 'lucide-react';
 import { loadModules } from 'esri-loader';
+import logo from './assets/GCS.png';
 
 // =================== Drone Status Component =================== //
 const DroneStatus = ({ connected, battery, mode, altitude }) => {
@@ -70,7 +71,7 @@ const ControlPanel = ({ onCommand }) => {
       <button onClick={() => onCommand('land')} className="btn btn-red">
         Land
       </button>
-      <button onClick={() => onCommand('guided')} className="btn btn-gray">
+      <button onClick={() => onCommand('guided')} className="btn btn-brown">
         Guided
       </button>
     </div>
@@ -296,7 +297,10 @@ const App = () => {
 
   return (
     <div className="container" style={{ height: '100vh', width: '100vw' }}>
-      <h1>Custom Ground Control Station</h1>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
+      <img src={logo} alt="Logo" style={{ height: '50px', marginRight: '1rem' }} />
+        <h1>Custom Ground Control Station</h1>
+      </div>
       <DroneStatus
         connected={droneState.connected}
         battery={droneState.battery}
