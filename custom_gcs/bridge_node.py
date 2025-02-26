@@ -70,7 +70,7 @@ class DronekitBridge(Node):
 
     def percent_callback(self, msg: Float32):
         """Callback to update battery percentage from the /percent topic."""
-        self._battery_percent = msg.data
+        self._battery_percent = round(msg.data, 2)
         self._current_state["battery"] = msg.data
         if msg.data < 10 and not self._battery_warning_sent:
             self.send_log("Warning: Battery below 10%!", level="warning")
@@ -91,10 +91,10 @@ class DronekitBridge(Node):
                 'battery': self._battery_percent if self._battery_percent > 10.0 else 10.0,
                 'lat': self._vehicle.location.global_relative_frame.lat,
                 'lon': self._vehicle.location.global_relative_frame.lon,
-                'alt': self._vehicle.location.global_relative_frame.alt,
+                'alt': round(self._vehicle.location.global_relative_frame.alt, 2),
                 'heading': self._vehicle.heading,
-                'groundspeed': self._vehicle.groundspeed,
-                'airspeed': self._vehicle.airspeed,
+                'groundspeed': round(self._vehicle.groundspeed, 2),
+                'airspeed': round(self._vehicle.airspeed, 2),
                 'attitude': {
                     'roll': self._vehicle.attitude.roll,
                     'pitch': self._vehicle.attitude.pitch,
