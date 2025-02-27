@@ -42,7 +42,7 @@ const TelemetryData = ({ data }) => {
 };
 
 // =================== Control Panel Component =================== //
-const ControlPanel = ({ onCommand }) => {
+const ControlPanel = ({ onCommand, gotoCoordinates, setGotoCoordinates }) => {
   const [altitude, setAltitude] = useState(10);
 
   return (
@@ -53,56 +53,116 @@ const ControlPanel = ({ onCommand }) => {
           type="number"
           min="1"
           value={altitude}
-          onChange={(e) => setAltitude(Math.max(1, parseInt(e.target.value) || 10))}
+          onChange={(e) =>
+            setAltitude(Math.max(1, parseInt(e.target.value) || 10))
+          }
         />
       </div>
-      <button onClick={() => onCommand('arm')} className="btn btn-blue">
+      <button onClick={() => onCommand('arm')} className="btn btn-brown">
         Arm
       </button>
-      <button 
-        onClick={() => onCommand('takeoff', altitude)} 
-        className="btn btn-green"
-      >
+      <button onClick={() => onCommand('takeoff', altitude)} className="btn btn-brown">
         Takeoff
       </button>
-      <button onClick={() => onCommand('rtl')} className="btn btn-yellow">
+      <button onClick={() => onCommand('rtl')} className="btn btn-brown">
         Return to Launch
       </button>
-      <button onClick={() => onCommand('land')} className="btn btn-red">
+      <button onClick={() => onCommand('land')} className="btn btn-brown">
         Land
       </button>
       <button onClick={() => onCommand('guided')} className="btn btn-brown">
         Guided
       </button>
+
+      {/* New Goto Controls */}
+      <div className="goto-control" style={{ marginTop: '1rem' }}>
+        <h3>Go To Coordinates</h3>
+        <div>
+          <label>Target Latitude: </label>
+          <input
+            type="number"
+            value={gotoCoordinates.lat}
+            onChange={(e) =>
+              setGotoCoordinates({ ...gotoCoordinates, lat: e.target.value })
+            }
+            placeholder="e.g., -35.363262"
+          />
+        </div>
+        <div>
+          <label>Target Longitude: </label>
+          <input
+            type="number"
+            value={gotoCoordinates.lon}
+            onChange={(e) =>
+              setGotoCoordinates({ ...gotoCoordinates, lon: e.target.value })
+            }
+            placeholder="e.g., 149.165237"
+          />
+        </div>
+        <div>
+          <label>Target Altitude (m): </label>
+          <input
+            type="number"
+            value={gotoCoordinates.alt}
+            onChange={(e) =>
+              setGotoCoordinates({ ...gotoCoordinates, alt: e.target.value })
+            }
+          />
+        </div>
+        <button
+          onClick={() =>
+            onCommand(
+              'goto',
+              gotoCoordinates.lat,
+              gotoCoordinates.lon,
+              gotoCoordinates.alt
+            )
+          }
+          className="btn btn-brown"
+        >
+          Go To
+        </button>
+      </div>
     </div>
   );
 };
 
 // =================== ArcGIS Map Component with Path Tracking =================== //
-const ArcgisMap = ({ lat, lon }) => {
-  const mapRef = useRef(null);              // Reference to the map container div
-  const viewRef = useRef(null);             // Reference to the MapView instance
-  const markerGraphicRef = useRef(null);    // Reference to the drone marker graphic
-  const pathGraphicRef = useRef(null);      // Reference to the polyline graphic
-  const graphicsLayerRef = useRef(null);    // Reference to the GraphicsLayer
-  const polylineCoordsRef = useRef([]);     // Holds an array of [lon, lat] points
-  const GraphicModuleRef = useRef(null);    // Will store the loaded Graphic module
+const ArcgisMap = ({ lat, lon, onMapRightClick }) => {
+  const mapRef = useRef(null);           // Map container reference
+  const viewRef = useRef(null);          // MapView instance reference
+  const markerGraphicRef = useRef(null); // Drone marker graphic reference
+  const pathGraphicRef = useRef(null);   // Polyline graphic reference
+  const graphicsLayerRef = useRef(null); // GraphicsLayer reference
+  const polylineCoordsRef = useRef([]);  // Holds an array of [lon, lat] points
+  const GraphicModuleRef = useRef(null); // Loaded Graphic module
+
+  // State for custom context menu
+  const [contextMenu, setContextMenu] = useState({
+    visible: false,
+    x: 0,
+    y: 0,
+    lat: 0,
+    lon: 0
+  });
 
   useEffect(() => {
     loadModules(
-      ['esri/Map', 'esri/views/MapView', 'esri/Graphic', 'esri/layers/GraphicsLayer'],
+      [
+        'esri/Map',
+        'esri/views/MapView',
+        'esri/Graphic',
+        'esri/layers/GraphicsLayer'
+      ],
       { css: true }
     )
       .then(([Map, MapView, Graphic, GraphicsLayer]) => {
-        // Save the Graphic module for later updates
         GraphicModuleRef.current = Graphic;
 
-        // Create the map with a "topo" basemap.
         const map = new Map({
-          basemap: 'topo'
+          basemap: 'satellite'
         });
 
-        // Initialize the MapView.
         const view = new MapView({
           container: mapRef.current,
           map: map,
@@ -111,31 +171,43 @@ const ArcgisMap = ({ lat, lon }) => {
         });
         viewRef.current = view;
 
-        // Create and add a GraphicsLayer.
+        // Add a GraphicsLayer for the drone marker and path
         const graphicsLayer = new GraphicsLayer();
         map.add(graphicsLayer);
         graphicsLayerRef.current = graphicsLayer;
 
-        // Create the drone marker graphic.
+        // Create the drone marker using a picture marker symbol.
         const markerGraphic = new Graphic({
           geometry: {
             type: 'point',
             longitude: lon || 0,
             latitude: lat || 0
           },
+          // symbol: {
+          //   type: 'picture-marker',
+          //   // Replace the URL below with any drone icon image of your choice.
+          //   url: 'https://img.icons8.com/color/48/000000/drone.png',
+          //   width: '32px',
+          //   height: '32px'
+          // }
           symbol: {
-            type: 'simple-marker',
-            color: [226, 119, 40],
-            outline: { color: [255, 255, 255], width: 2 }
+            type: "simple-marker",
+            color: [50, 205, 50],  // Lime green
+            outline: {
+              color: [255, 255, 255],
+              width: 2
+            },
+            size: "20px",
+            style: "triangle"
           }
         });
         graphicsLayer.add(markerGraphic);
         markerGraphicRef.current = markerGraphic;
 
-        // Initialize the polyline coordinates with the starting point.
+        // Initialize the polyline with the starting point.
         polylineCoordsRef.current = [[lon, lat]];
 
-        // Create the polyline graphic to show the drone’s path.
+        // Create the polyline graphic to display the drone’s path.
         const polylineGraphic = new Graphic({
           geometry: {
             type: 'polyline',
@@ -149,10 +221,30 @@ const ArcgisMap = ({ lat, lon }) => {
         });
         graphicsLayer.add(polylineGraphic);
         pathGraphicRef.current = polylineGraphic;
+
+        // Add a right-click (contextmenu) listener on the view container.
+        view.when(() => {
+          view.container.addEventListener('contextmenu', (event) => {
+            event.preventDefault(); // Prevent default browser menu
+
+            // Convert the screen point to map coordinates.
+            const screenPoint = { x: event.clientX, y: event.clientY };
+            const mapPoint = view.toMap(screenPoint);
+
+            // Set context menu state.
+            setContextMenu({
+              visible: true,
+              x: event.clientX,
+              y: event.clientY,
+              lat: mapPoint.latitude,
+              lon: mapPoint.longitude
+            });
+          });
+        });
       })
       .catch(err => console.error('ArcGIS loadModules error: ', err));
 
-    // Cleanup: Destroy the MapView when the component unmounts.
+    // Cleanup: Destroy the MapView on unmount.
     return () => {
       if (viewRef.current) {
         viewRef.current.destroy();
@@ -168,19 +260,18 @@ const ArcgisMap = ({ lat, lon }) => {
       GraphicModuleRef.current &&
       graphicsLayerRef.current
     ) {
-      // Update the drone marker position.
+      // Update marker position.
       markerGraphicRef.current.geometry = {
         type: 'point',
         longitude: lon,
         latitude: lat
       };
 
-      // Calculate the distance from the last recorded point.
+      // Update the path if the movement exceeds a threshold.
       const lastCoords = polylineCoordsRef.current[polylineCoordsRef.current.length - 1];
       const toRadians = (deg) => (deg * Math.PI) / 180;
       const latDiff = lat - lastCoords[1];
       const lonDiff = lon - lastCoords[0];
-      // Approximate conversion: 1° latitude ~ 111320 meters, and for longitude scale with cos(latitude)
       const avgLat = (lat + lastCoords[1]) / 2;
       const metersPerDegLat = 111320;
       const metersPerDegLon = 111320 * Math.cos(toRadians(avgLat));
@@ -188,12 +279,9 @@ const ArcgisMap = ({ lat, lon }) => {
         (latDiff * metersPerDegLat) ** 2 + (lonDiff * metersPerDegLon) ** 2
       );
 
-      // Set a threshold (e.g., 2 meters) to record a new point.
-      const threshold = 2;
+      const threshold = 2; // in meters
       if (distance >= threshold) {
-        // Add the new coordinate to the polyline path.
         polylineCoordsRef.current.push([lon, lat]);
-        // Update the polyline graphic geometry.
         pathGraphicRef.current.geometry = {
           type: 'polyline',
           paths: polylineCoordsRef.current
@@ -205,7 +293,34 @@ const ArcgisMap = ({ lat, lon }) => {
     }
   }, [lat, lon]);
 
-  return <div style={{ height: '100%', width: '100%' }} ref={mapRef}></div>;
+  return (
+    <div style={{ height: '100%', width: '100%', position: 'relative' }} ref={mapRef}>
+      {/* Render the custom context menu if visible */}
+      {contextMenu.visible && (
+        <div
+          style={{
+            position: 'absolute',
+            top: contextMenu.y,
+            left: contextMenu.x,
+            background: 'white',
+            border: '1px solid #ccc',
+            padding: '5px',
+            zIndex: 1000,
+            cursor: 'pointer'
+          }}
+          onClick={() => {
+            // Call the parent's callback with the selected coordinates.
+            if (onMapRightClick) {
+              onMapRightClick(contextMenu.lat, contextMenu.lon);
+            }
+            setContextMenu({ ...contextMenu, visible: false });
+          }}
+        >
+          <button style={{ cursor: 'pointer' }}>Set goto coordinates</button>
+        </div>
+      )}
+    </div>
+  );
 };
 
 // =================== Main App Component =================== //
@@ -225,7 +340,19 @@ const App = () => {
     }
   });
 
-  // Set up a WebSocket connection to receive drone telemetry.
+  // State to hold goto coordinates.
+  const [gotoCoordinates, setGotoCoordinates] = useState({
+    lat: '',
+    lon: '',
+    alt: 10
+  });
+
+  // Callback to update goto coordinates from the map's right-click.
+  const handleMapRightClick = (lat, lon) => {
+    setGotoCoordinates({ ...gotoCoordinates, lat, lon });
+  };
+
+  // WebSocket connection for drone telemetry.
   useEffect(() => {
     const ws = new WebSocket('ws://localhost:8765');
     setWebsocket(ws);
@@ -275,8 +402,8 @@ const App = () => {
         commandObj = { type: 'arm', value: true };
         break;
       case 'takeoff':
-        const altitude = params[0] || 10;
-        commandObj = { type: 'takeoff', altitude: altitude };
+        const takeoffAltitude = params[0] || 10;
+        commandObj = { type: 'takeoff', altitude: takeoffAltitude };
         break;
       case 'rtl':
         commandObj = { type: 'mode', value: 'RTL' };
@@ -287,6 +414,18 @@ const App = () => {
       case 'land':
         commandObj = { type: 'mode', value: 'LAND' };
         break;
+      case 'goto': {
+          const targetLat = params[0];
+          const targetLon = params[1];
+          const targetAlt = params[2];
+          commandObj = {
+            type: 'goto',
+            lat: parseFloat(targetLat),
+            lon: parseFloat(targetLon),
+            alt: parseFloat(targetAlt)
+          };
+          break;
+        }
       default:
         console.error('Unknown command:', commandType);
         return;
@@ -298,7 +437,7 @@ const App = () => {
   return (
     <div className="container" style={{ height: '100vh', width: '100vw' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
-      <img src={logo} alt="Logo" style={{ height: '50px', marginRight: '1rem' }} />
+        <img src={logo} alt="Logo" style={{ height: '50px', marginRight: '1rem' }} />
         <h1>Custom Ground Control Station</h1>
       </div>
       <DroneStatus
@@ -310,11 +449,19 @@ const App = () => {
 
       <div className="main-content" style={{ display: 'flex', gap: '1rem', height: 'calc(100% - 100px)' }}>
         <div className="map-container" style={{ height: '100%', flex: 2 }}>
-          <ArcgisMap lat={droneState.lat} lon={droneState.lon} />
+          <ArcgisMap
+            lat={droneState.lat}
+            lon={droneState.lon}
+            onMapRightClick={handleMapRightClick}
+          />
         </div>
         <div className="side-panel" style={{ flex: 1 }}>
           <TelemetryData data={droneState.telemetry} />
-          <ControlPanel onCommand={handleCommand} />
+          <ControlPanel
+            onCommand={handleCommand}
+            gotoCoordinates={gotoCoordinates}
+            setGotoCoordinates={setGotoCoordinates}
+          />
         </div>
       </div>
     </div>

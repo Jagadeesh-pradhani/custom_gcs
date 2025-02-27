@@ -62,10 +62,10 @@ class DronekitBridge(Node):
                 'battery': self._vehicle.battery.level if self._vehicle.battery else 0.0,
                 'lat': self._vehicle.location.global_relative_frame.lat,
                 'lon': self._vehicle.location.global_relative_frame.lon,
-                'alt': self._vehicle.location.global_relative_frame.alt,
+                'alt': round(self._vehicle.location.global_relative_frame.alt, 2),
                 'heading': self._vehicle.heading,
-                'groundspeed': self._vehicle.groundspeed,
-                'airspeed': self._vehicle.airspeed,
+                'groundspeed': round(self._vehicle.groundspeed, 2),
+                'airspeed': round(self._vehicle.airspeed, 2),
                 'attitude': {
                     'roll': self._vehicle.attitude.roll,
                     'pitch': self._vehicle.attitude.pitch,
