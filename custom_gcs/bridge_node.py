@@ -114,7 +114,8 @@ class DronekitBridge(Node):
                 response['message'] = f"Taking off to {cmd.get('altitude', 10)}m"
                 
             elif cmd['type'] == 'goto':
-                await self._goto(cmd['lat'], cmd['lon'], cmd['alt'])
+                # Now include the groundspeed value from the command
+                await self._goto(cmd['lat'], cmd['lon'], cmd['alt'], cmd['groundspeed'])
                 response['message'] = "Moving to location"
                 
             elif cmd['type'] == 'rtl':
@@ -149,9 +150,9 @@ class DronekitBridge(Node):
                 break
             await asyncio.sleep(1)
 
-    async def _goto(self, lat, lon, alt):
+    async def _goto(self, lat, lon, alt, groundspeed):
         point = LocationGlobalRelative(lat, lon, alt)
-        self._vehicle.simple_goto(point)
+        self._vehicle.simple_goto(point, groundspeed=groundspeed)
 
     async def _broadcast_state(self):
         if self._websocket_clients:

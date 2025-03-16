@@ -1,4 +1,3 @@
-// src/App.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { Wifi } from 'lucide-react';
 import { loadModules } from 'esri-loader';
@@ -109,13 +108,25 @@ const ControlPanel = ({ onCommand, gotoCoordinates, setGotoCoordinates }) => {
             }
           />
         </div>
+        <div>
+          <label>Target Groundspeed (m/s): </label>
+          <input
+            type="number"
+            value={gotoCoordinates.groundspeed}
+            onChange={(e) =>
+              setGotoCoordinates({ ...gotoCoordinates, groundspeed: e.target.value })
+            }
+            placeholder="e.g., 5"
+          />
+        </div>
         <button
           onClick={() =>
             onCommand(
               'goto',
               gotoCoordinates.lat,
               gotoCoordinates.lon,
-              gotoCoordinates.alt
+              gotoCoordinates.alt,
+              gotoCoordinates.groundspeed
             )
           }
           className="btn btn-brown"
@@ -176,20 +187,13 @@ const ArcgisMap = ({ lat, lon, onMapRightClick }) => {
         map.add(graphicsLayer);
         graphicsLayerRef.current = graphicsLayer;
 
-        // Create the drone marker using a picture marker symbol.
+        // Create the drone marker using a simple marker.
         const markerGraphic = new Graphic({
           geometry: {
             type: 'point',
             longitude: lon || 0,
             latitude: lat || 0
           },
-          // symbol: {
-          //   type: 'picture-marker',
-          //   // Replace the URL below with any drone icon image of your choice.
-          //   url: 'https://img.icons8.com/color/48/000000/drone.png',
-          //   width: '32px',
-          //   height: '32px'
-          // }
           symbol: {
             type: "simple-marker",
             color: [50, 205, 50],  // Lime green
@@ -344,7 +348,8 @@ const App = () => {
   const [gotoCoordinates, setGotoCoordinates] = useState({
     lat: '',
     lon: '',
-    alt: 10
+    alt: 10,
+    groundspeed: 5
   });
 
   // Callback to update goto coordinates from the map's right-click.
@@ -418,11 +423,13 @@ const App = () => {
           const targetLat = params[0];
           const targetLon = params[1];
           const targetAlt = params[2];
+          const targetGroundspeed = params[3];
           commandObj = {
             type: 'goto',
             lat: parseFloat(targetLat),
             lon: parseFloat(targetLon),
-            alt: parseFloat(targetAlt)
+            alt: parseFloat(targetAlt),
+            groundspeed: parseFloat(targetGroundspeed)
           };
           break;
         }
