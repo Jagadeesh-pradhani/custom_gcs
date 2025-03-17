@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import sys
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32  # For battery percentage
@@ -16,7 +17,7 @@ class DronekitBridge(Node):
         super().__init__('dronekit_bridge')
         
         # Declare and read parameter for number of drones
-        self.declare_parameter("num_drones", 2)
+        self.declare_parameter("num_drones", 1)
         self.num_drones = self.get_parameter("num_drones").value
         
         # Containers for multi-drone support
@@ -54,7 +55,6 @@ class DronekitBridge(Node):
             self._battery_warning_sent[drone_id] = False
 
         self.send_log(f"DronekitBridge initialized with {self.num_drones} drone(s)")
-        print(self.num_drones)
         
         # Connect to each vehicle using unique UDP ports (14550, 14551, ...)
         for drone_id in range(self.num_drones):
@@ -201,8 +201,22 @@ class DronekitBridge(Node):
                 self.send_log(message)
                 return {'message': message}
             elif cmd['type'] == 'goto':
-                await self._goto(vehicle, cmd['lat'], cmd['lon'], cmd['alt'])
-                message = f"Drone {drone_id} moving to location"
+                # Retrieve target coordinates from the command
+                lat = cmd['lat']
+                lon = cmd['lon']
+                alt = cmd['alt']
+                # If targeting all drones, let the drone with the smallest id go exactly
+                # and assign an offset for the others.
+                if cmd.get('target') == 'all':
+                    if drone_id != min(self.vehicles.keys()):
+                        offset = 0.0001  # Offset value (adjust as needed)
+                        # A simple offset pattern: alternate between adding to latitude or longitude
+                        if drone_id % 2 == 0:
+                            lat = lat + offset
+                        else:
+                            lon = lon + offset
+                await self._goto(vehicle, lat, lon, alt)
+                message = f"Drone {drone_id} moving to location ({lat}, {lon}, {alt})"
                 self.send_log(message)
                 return {'message': message}
             elif cmd['type'] == 'rtl':
@@ -310,8 +324,8 @@ class DronekitBridge(Node):
             message = json.dumps(log_data)
             websockets.broadcast(self._websocket_clients, message)
 
-def main():
-    rclpy.init()
+def main(args=None):
+    rclpy.init(args=args)  # Pass command-line args to allow parameter overrides
     try:
         bridge = DronekitBridge()
         rclpy.spin(bridge)
