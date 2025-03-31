@@ -45,10 +45,11 @@ const TelemetryData = ({ data }) => {
 const ControlPanel = ({ onCommand }) => {
   const [altitude, setAltitude] = useState(10);
   
-  // New state variables for goto coordinates
+  // New state variables for goto coordinates and groundspeed
   const [gotoLat, setGotoLat] = useState('');
   const [gotoLon, setGotoLon] = useState('');
   const [gotoAlt, setGotoAlt] = useState(10);
+  const [gotoGroundSpeed, setGotoGroundSpeed] = useState(5); // default ground speed
 
   return (
     <div className="control-panel">
@@ -111,8 +112,16 @@ const ControlPanel = ({ onCommand }) => {
             onChange={(e) => setGotoAlt(e.target.value)}
           />
         </div>
+        <div>
+          <label>Ground Speed (m/s): </label>
+          <input
+            type="number"
+            value={gotoGroundSpeed}
+            onChange={(e) => setGotoGroundSpeed(e.target.value)}
+          />
+        </div>
         <button
-          onClick={() => onCommand('goto', gotoLat, gotoLon, gotoAlt)}
+          onClick={() => onCommand('goto', gotoLat, gotoLon, gotoAlt, gotoGroundSpeed)}
           className="btn btn-brown"
         >
           Go To
@@ -169,7 +178,7 @@ const ArcgisMap = ({ lat, lon }) => {
       .then(([Map, MapView, Graphic, GraphicsLayer]) => {
         GraphicModuleRef.current = Graphic;
         const map = new Map({
-          basemap: 'topo'
+          basemap: 'satellite'
         });
         const view = new MapView({
           container: mapRef.current,
@@ -323,7 +332,7 @@ const App = () => {
     };
   }, []);
 
-  // Update handleCommand to support the "goto" command.
+  // Update handleCommand to support the "goto" command with groundspeed.
   const handleCommand = (commandType, ...params) => {
     if (!websocket || websocket.readyState !== WebSocket.OPEN) {
       console.error('WebSocket not connected');
@@ -356,11 +365,13 @@ const App = () => {
         const targetLat = params[0];
         const targetLon = params[1];
         const targetAlt = params[2];
+        const groundSpeed = params[3] ? parseFloat(params[3]) : 5;
         commandObj = { 
           type: 'goto', 
           lat: parseFloat(targetLat), 
           lon: parseFloat(targetLon), 
-          alt: parseFloat(targetAlt) 
+          alt: parseFloat(targetAlt),
+          groundspeed: groundSpeed
         };
         break;
       }
@@ -377,9 +388,9 @@ const App = () => {
   return (
     <div className="container" style={{ height: '100vh', width: '100vw' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
-      <img src={logo} alt="Logo" style={{ height: '50px', marginRight: '1rem' }} />
-      <h1>Custom Ground Control Station</h1>
-    </div>
+        <img src={logo} alt="Logo" style={{ height: '50px', marginRight: '1rem' }} />
+        <h1>Custom Ground Control Station</h1>
+      </div>
       <DroneStatus
         connected={droneState.connected}
         battery={droneState.battery}
