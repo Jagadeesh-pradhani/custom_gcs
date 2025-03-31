@@ -42,17 +42,24 @@ const TelemetryData = ({ data }) => {
 };
 
 // =================== Control Panel Component =================== //
-const ControlPanel = ({ onCommand }) => {
+const ControlPanel = ({ onCommand, gotoCoord }) => {
   const [altitude, setAltitude] = useState(10);
-  
   // New state variables for goto coordinates and groundspeed
   const [gotoLat, setGotoLat] = useState('');
   const [gotoLon, setGotoLon] = useState('');
   const [gotoAlt, setGotoAlt] = useState(10);
-  const [gotoGroundSpeed, setGotoGroundSpeed] = useState(5); // default ground speed
+  const [gotoGroundSpeed, setGotoGroundSpeed] = useState(5);
+
+  // When the map returns a coordinate from a right-click, update the input fields.
+  useEffect(() => {
+    if (gotoCoord && gotoCoord.lat && gotoCoord.lon) {
+      setGotoLat(gotoCoord.lat);
+      setGotoLon(gotoCoord.lon);
+    }
+  }, [gotoCoord]);
 
   return (
-    <div className="control-panel">
+    <div className="control-panel" style={{ padding: '1rem' }}>
       <div className="altitude-control">
         <label>Takeoff Altitude (m): </label>
         <input
@@ -134,7 +141,7 @@ const ControlPanel = ({ onCommand }) => {
 // =================== Log Panel Component =================== //
 const LogPanel = ({ logs }) => {
   return (
-    <div className="log-panel" style={{ marginTop: '1rem' }}>
+    <div className="log-panel" style={{ marginTop: '1rem', padding: '1rem' }}>
       <h2>System Log</h2>
       <div
         style={{
@@ -155,8 +162,8 @@ const LogPanel = ({ logs }) => {
   );
 };
 
-// =================== ArcGIS Map Component with Path Tracking =================== //
-const ArcgisMap = ({ lat, lon }) => {
+// =================== ArcGIS Map Component =================== //
+const ArcgisMap = ({ lat, lon, onRightClick }) => {
   const mapRef = useRef(null);
   const viewRef = useRef(null);
   const markerGraphicRef = useRef(null);
@@ -165,6 +172,7 @@ const ArcgisMap = ({ lat, lon }) => {
   const polylineCoordsRef = useRef([]);
   const GraphicModuleRef = useRef(null);
 
+  // Initialize the map only once
   useEffect(() => {
     loadModules(
       [
@@ -177,9 +185,7 @@ const ArcgisMap = ({ lat, lon }) => {
     )
       .then(([Map, MapView, Graphic, GraphicsLayer]) => {
         GraphicModuleRef.current = Graphic;
-        const map = new Map({
-          basemap: 'satellite'
-        });
+        const map = new Map({ basemap: 'satellite' });
         const view = new MapView({
           container: mapRef.current,
           map: map,
@@ -191,11 +197,7 @@ const ArcgisMap = ({ lat, lon }) => {
         map.add(graphicsLayer);
         graphicsLayerRef.current = graphicsLayer;
         const markerGraphic = new Graphic({
-          geometry: {
-            type: 'point',
-            longitude: lon || 0,
-            latitude: lat || 0
-          },
+          geometry: { type: 'point', longitude: lon || 0, latitude: lat || 0 },
           symbol: {
             type: 'simple-marker',
             color: [226, 119, 40],
@@ -206,43 +208,42 @@ const ArcgisMap = ({ lat, lon }) => {
         markerGraphicRef.current = markerGraphic;
         polylineCoordsRef.current = [[lon, lat]];
         const polylineGraphic = new Graphic({
-          geometry: {
-            type: 'polyline',
-            paths: polylineCoordsRef.current
-          },
-          symbol: {
-            type: 'simple-line',
-            color: [0, 0, 255],
-            width: 2
-          }
+          geometry: { type: 'polyline', paths: polylineCoordsRef.current },
+          symbol: { type: 'simple-line', color: [0, 0, 255], width: 2 }
         });
         graphicsLayer.add(polylineGraphic);
         pathGraphicRef.current = polylineGraphic;
+
+        // Right-click listener to capture coordinates
+        const handleContextMenu = (event) => {
+          event.preventDefault();
+          const screenPoint = { x: event.x, y: event.y };
+          const mapPoint = view.toMap(screenPoint);
+          if (onRightClick && mapPoint) {
+            onRightClick({ lat: mapPoint.latitude, lon: mapPoint.longitude });
+          }
+          return false;
+        };
+        view.container.addEventListener('contextmenu', handleContextMenu);
+        return () => {
+          if (view && view.container) {
+            view.container.removeEventListener('contextmenu', handleContextMenu);
+          }
+        };
       })
       .catch((err) => console.error('ArcGIS loadModules error: ', err));
+  }, []); // run only once on mount
 
-    return () => {
-      if (viewRef.current) {
-        viewRef.current.destroy();
-      }
-    };
-  }, []);
-
+  // Update marker and polyline without changing the view's size or center
   useEffect(() => {
     if (
       markerGraphicRef.current &&
-      viewRef.current &&
       GraphicModuleRef.current &&
       graphicsLayerRef.current
     ) {
-      markerGraphicRef.current.geometry = {
-        type: 'point',
-        longitude: lon,
-        latitude: lat
-      };
+      markerGraphicRef.current.geometry = { type: 'point', longitude: lon, latitude: lat };
 
-      const lastCoords =
-        polylineCoordsRef.current[polylineCoordsRef.current.length - 1];
+      const lastCoords = polylineCoordsRef.current[polylineCoordsRef.current.length - 1];
       const toRadians = (deg) => (deg * Math.PI) / 180;
       const latDiff = lat - lastCoords[1];
       const lonDiff = lon - lastCoords[0];
@@ -256,12 +257,8 @@ const ArcgisMap = ({ lat, lon }) => {
       const threshold = 2;
       if (distance >= threshold) {
         polylineCoordsRef.current.push([lon, lat]);
-        pathGraphicRef.current.geometry = {
-          type: 'polyline',
-          paths: polylineCoordsRef.current
-        };
+        pathGraphicRef.current.geometry = { type: 'polyline', paths: polylineCoordsRef.current };
       }
-      viewRef.current.center = [lon, lat];
     }
   }, [lat, lon]);
 
@@ -276,15 +273,12 @@ const App = () => {
     battery: 0,
     mode: 'STABILIZE',
     altitude: 0,
-    lat: -35.363262,
-    lon: 149.165237,
-    telemetry: {
-      heading: 0,
-      groundspeed: 0,
-      airspeed: 0
-    }
+    lat: 39.925533,
+    lon: 32.866287,
+    telemetry: { heading: 0, groundspeed: 0, airspeed: 0 }
   });
   const [logs, setLogs] = useState([]);
+  const [gotoCoord, setGotoCoord] = useState({ lat: '', lon: '' });
 
   const addLog = (message) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -294,16 +288,14 @@ const App = () => {
   useEffect(() => {
     const ws = new WebSocket('ws://localhost:8765');
     setWebsocket(ws);
-
     ws.onopen = () => {
       console.log('Connected to WebSocket server');
       addLog('Connected to WebSocket server');
       setDroneState((prev) => ({ ...prev, connected: true }));
     };
-
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      if (data.type === "log" && data.message) {
+      if (data.type === 'log' && data.message) {
         addLog(`[${data.level.toUpperCase()}] ${data.message}`);
       }
       setDroneState((prev) => ({
@@ -313,41 +305,32 @@ const App = () => {
         altitude: data.alt,
         lat: data.lat,
         lon: data.lon,
-        telemetry: {
-          heading: data.heading,
-          groundspeed: data.groundspeed,
-          airspeed: data.airspeed
-        }
+        telemetry: { heading: data.heading, groundspeed: data.groundspeed, airspeed: data.airspeed }
       }));
     };
-
     ws.onclose = () => {
       console.log('Disconnected from WebSocket server');
       addLog('Disconnected from WebSocket server');
       setDroneState((prev) => ({ ...prev, connected: false }));
     };
-
     return () => {
       if (ws) ws.close();
     };
   }, []);
 
-  // Update handleCommand to support the "goto" command with groundspeed.
   const handleCommand = (commandType, ...params) => {
     if (!websocket || websocket.readyState !== WebSocket.OPEN) {
       console.error('WebSocket not connected');
       addLog('WebSocket not connected');
       return;
     }
-
     let commandObj;
     switch (commandType) {
       case 'arm':
         commandObj = { type: 'arm', value: true };
         break;
       case 'takeoff':
-        const takeoffAltitude = params[0] || 10;
-        commandObj = { type: 'takeoff', altitude: takeoffAltitude };
+        commandObj = { type: 'takeoff', altitude: params[0] || 10 };
         break;
       case 'rtl':
         commandObj = { type: 'mode', value: 'RTL' };
@@ -362,16 +345,13 @@ const App = () => {
         commandObj = { type: 'mission' };
         break;
       case 'goto': {
-        const targetLat = params[0];
-        const targetLon = params[1];
-        const targetAlt = params[2];
-        const groundSpeed = params[3] ? parseFloat(params[3]) : 5;
-        commandObj = { 
-          type: 'goto', 
-          lat: parseFloat(targetLat), 
-          lon: parseFloat(targetLon), 
+        const [targetLat, targetLon, targetAlt, gs] = params;
+        commandObj = {
+          type: 'goto',
+          lat: parseFloat(targetLat),
+          lon: parseFloat(targetLon),
           alt: parseFloat(targetAlt),
-          groundspeed: groundSpeed
+          groundspeed: gs ? parseFloat(gs) : 5
         };
         break;
       }
@@ -380,7 +360,6 @@ const App = () => {
         addLog(`Unknown command: ${commandType}`);
         return;
     }
-
     addLog(`Sending command: ${JSON.stringify(commandObj)}`);
     websocket.send(JSON.stringify(commandObj));
   };
@@ -397,17 +376,19 @@ const App = () => {
         mode={droneState.mode}
         altitude={droneState.altitude}
       />
-
       <div
         className="main-content"
-        style={{ display: 'flex', gap: '1rem', height: 'calc(100% - 100px)' }}
+        style={{ display: 'flex', flexDirection: 'row', height: 'calc(100% - 100px)' }}
       >
-        <div className="map-container" style={{ height: '100%', flex: 2 }}>
-          <ArcgisMap lat={droneState.lat} lon={droneState.lon} />
+        <div
+          className="map-container"
+          style={{ flex: '2 1 0', minHeight: '400px', overflow: 'hidden' }}
+        >
+          <ArcgisMap lat={droneState.lat} lon={droneState.lon} onRightClick={setGotoCoord} />
         </div>
-        <div className="side-panel" style={{ flex: 1 }}>
+        <div className="side-panel" style={{ flex: '1 1 0', overflowY: 'auto' }}>
           <TelemetryData data={droneState.telemetry} />
-          <ControlPanel onCommand={handleCommand} />
+          <ControlPanel onCommand={handleCommand} gotoCoord={gotoCoord} />
           <LogPanel logs={logs} />
         </div>
       </div>

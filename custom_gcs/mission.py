@@ -241,7 +241,7 @@ class AutonomousMission():
         print(self.node._vehicle.heading)
         self.ArmAndTakeoff(alt)
         time.sleep(4)
-        self.GotoLocation(-35.3630969, 149.1651725, alt)
+        self.GotoLocation(39.9256981, 32.8662225, alt)
         time.sleep(4)
         self.landt()
         print("Mission complete")
